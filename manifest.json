@@ -1,0 +1,37 @@
+{
+    "manifest_version": 2.0,
+    "id": "aiintegration",
+    "name": "AI Integration",
+    "version": "1.0.0",
+    "namespace": "AIIntegration",
+    "description": "Integration of AI with quick actions in Zabbix.",
+    "author": "MonZphere",
+    "url": "monzphere.com",
+    "actions": {
+        "aiintegration.settings": {
+            "class": "AIIntegrationSettings",
+            "view": "aiintegration.settings"
+        },
+        "aiintegration.settings.save": {
+            "class": "AIIntegrationSettingsSave"
+        },
+        "aiintegration.query": {
+            "class": "AIIntegrationQuery"
+        },
+        "aiintegration.providers": {
+            "class": "AIIntegrationProviders"
+        }
+    },
+    "assets": {
+        "css": [
+            "aiintegration.css"
+        ],
+        "js": [
+            "aiintegration-core.js",
+            "aiintegration-init.js",
+            "aiintegration-problems.js",
+            "aiintegration-forms.js",
+            "aiintegration-latestdata.js"
+        ]
+    }
+}
