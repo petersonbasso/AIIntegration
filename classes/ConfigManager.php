@@ -51,7 +51,14 @@ class ConfigManager {
 		}
 
 		$config = json_decode($data, true);
-		return is_array($config) ? array_merge(self::getDefaults(), $config) : self::getDefaults();
+		if (!is_array($config)) {
+			return self::getDefaults();
+		}
+
+		$config = array_merge(self::getDefaults(), $config);
+		self::decryptApiKeys($config);
+
+		return $config;
 	}
 
 	/**
@@ -64,7 +71,13 @@ class ConfigManager {
 		}
 
 		$config = json_decode($data, true);
-		return is_array($config) ? $config : ['providers' => []];
+		if (!is_array($config)) {
+			return ['providers' => []];
+		}
+
+		self::decryptApiKeys($config);
+
+		return $config;
 	}
 
 	/**
@@ -75,6 +88,8 @@ class ConfigManager {
 			return false;
 		}
 
+		self::encryptApiKeys($config);
+
 		$json = json_encode($config);
 		CProfile::update(self::PROFILE_KEY_GLOBAL, $json, PROFILE_TYPE_STR);
 		return true;
@@ -84,9 +99,103 @@ class ConfigManager {
 	 * Save current user's configuration.
 	 */
 	public static function saveUser(array $config): bool {
+		self::encryptApiKeys($config);
+
 		$json = json_encode($config);
 		CProfile::update(self::PROFILE_KEY_USER, $json, PROFILE_TYPE_STR);
 		return true;
+	}
+
+	/**
+	 * Encrypt all API keys in the config array.
+	 */
+	private static function encryptApiKeys(array &$config): void {
+		if (!isset($config['providers'])) {
+			return;
+		}
+
+		foreach ($config['providers'] as &$provider) {
+			if (isset($provider['api_key']) && $provider['api_key'] !== '' && $provider['api_key'] !== '********') {
+				$provider['api_key'] = self::encrypt($provider['api_key']);
+			}
+		}
+	}
+
+	/**
+	 * Decrypt all API keys in the config array.
+	 */
+	private static function decryptApiKeys(array &$config): void {
+		if (!isset($config['providers'])) {
+			return;
+		}
+
+		foreach ($config['providers'] as &$provider) {
+			if (isset($provider['api_key']) && $provider['api_key'] !== '' && $provider['api_key'] !== '********') {
+				$decrypted = self::decrypt($provider['api_key']);
+				if ($decrypted !== false) {
+					$provider['api_key'] = $decrypted;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Encrypt plain text using AES-256-GCM.
+	 */
+	private static function encrypt(string $plaintext): string {
+		$key = self::getMasterKey();
+		$ivlen = openssl_cipher_iv_length($cipher = "AES-256-GCM");
+		$iv = openssl_random_pseudo_bytes($ivlen);
+		$ciphertext = openssl_encrypt($plaintext, $cipher, $key, $options = 0, $iv, $tag);
+		
+		return base64_encode($iv . $tag . $ciphertext);
+	}
+
+	/**
+	 * Decrypt cipher text using AES-256-GCM.
+	 */
+	private static function decrypt(string $ciphertext_base64): string|false {
+		$key = self::getMasterKey();
+		$data = base64_decode($ciphertext_base64);
+		$ivlen = openssl_cipher_iv_length($cipher = "AES-256-GCM");
+		
+		$iv = substr($data, 0, $ivlen);
+		$tag = substr($data, $ivlen, 16);
+		$ciphertext = substr($data, $ivlen + 16);
+		
+		return openssl_decrypt($ciphertext, $cipher, $key, $options = 0, $iv, $tag);
+	}
+
+	/**
+	 * Get the master key for encryption.
+	 */
+	private static function getMasterKey(): string {
+		// 1. Prioridade máxima: Variável de Ambiente
+		$key = getenv('ZBX_AI_MASTER_KEY');
+		if ($key) {
+			return hash('sha256', $key, true);
+		}
+
+		// 2. Tentar usar uma Macro Global do Zabbix ({$AI_MASTER_KEY})
+		// Isso permite ao usuário gerenciar a chave pela UI do Zabbix sem arquivos.
+		try {
+			$macros = \API::UserMacro()->get([
+				'globalmacro' => true,
+				'output' => ['value'],
+				'filter' => ['macro' => '{$AI_MASTER_KEY}']
+			]);
+			if ($macros) {
+				return hash('sha256', $macros[0]['value'], true);
+			}
+		} catch (\Exception $e) {
+			// Silenciosamente falha se a API não estiver pronta
+		}
+
+		// 3. Fallback sem arquivos: Derivado das credenciais do banco do Zabbix.
+		// Único por instalação, mas não requer novos arquivos no disco.
+		global $DB;
+		$seed = ($DB['DATABASE'] ?? 'zbx_default') . ($DB['USER'] ?? 'zbx_user');
+		return hash('sha256', 'zbx_ai_integration_fallback' . $seed, true);
 	}
 
 	private static function getDefaults(): array {
