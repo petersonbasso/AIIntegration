@@ -44,10 +44,10 @@ $default_provider_select = (new CSelect('default_provider'))
 	->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH);
 
 $qa_container = (new CDiv([
-	(new CCheckBox('qa_problems'))->setLabel(_('Problems'))->setChecked(!empty($quick_actions['problems'])),
-	(new CCheckBox('qa_triggers'))->setLabel(_('Triggers'))->setChecked(!empty($quick_actions['triggers'])),
-	(new CCheckBox('qa_items'))->setLabel(_('Latest data'))->setChecked(!empty($quick_actions['items'])),
-	(new CCheckBox('qa_hosts'))->setLabel(_('Hosts'))->setChecked(!empty($quick_actions['hosts']))
+	(new CCheckBox('qa_problems'))->setLabel(_('Problems'))->setChecked(!empty($quick_actions['problems']))->setEnabled($is_super_admin),
+	(new CCheckBox('qa_triggers'))->setLabel(_('Triggers'))->setChecked(!empty($quick_actions['triggers']))->setEnabled($is_super_admin),
+	(new CCheckBox('qa_items'))->setLabel(_('Latest data'))->setChecked(!empty($quick_actions['items']))->setEnabled($is_super_admin),
+	(new CCheckBox('qa_hosts'))->setLabel(_('Hosts'))->setChecked(!empty($quick_actions['hosts']))->setEnabled($is_super_admin)
 ]))->addClass('aiintegration-qa-options');
 
 $general_grid = (new CFormGrid())
@@ -57,7 +57,7 @@ $general_grid = (new CFormGrid())
 	])
 	->addItem([
 		new CLabel(_('Quick actions'), 'qa_problems'),
-		new CFormField($qa_container->setEnabled($is_super_admin))
+		new CFormField($qa_container)
 	])
 	->addItem([
 		new CLabel(_('Storage'), 'aiintegration-storage-info'),
